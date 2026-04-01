@@ -7,17 +7,24 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
-	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/jeramo/pling-agent/internal/api"
 )
 
+var updateMu sync.Mutex
+
 // CheckAndUpdate checks the backend for the latest version and self-updates if outdated.
 // Called after each heartbeat. If an update is applied, the process restarts via exec.
 func CheckAndUpdate(client *api.Client, currentVersion string) {
+	if !updateMu.TryLock() {
+		return // another update is already in progress
+	}
+	defer updateMu.Unlock()
 	latest, err := fetchLatestVersion(client)
 	if err != nil {
 		log.Printf("[updater] failed to check version: %v", err)
@@ -139,22 +146,5 @@ func restart() {
 }
 
 func evalSymlinks(path string) (string, error) {
-	// Resolve symlinks manually since filepath.EvalSymlinks may not be available
-	info, err := os.Lstat(path)
-	if err != nil {
-		return path, err
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		resolved, err := os.Readlink(path)
-		if err != nil {
-			return path, err
-		}
-		if !strings.HasPrefix(resolved, "/") {
-			// Relative symlink
-			dir := path[:strings.LastIndex(path, "/")+1]
-			resolved = dir + resolved
-		}
-		return resolved, nil
-	}
-	return path, nil
+	return filepath.EvalSymlinks(path)
 }
