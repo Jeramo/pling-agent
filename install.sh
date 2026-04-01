@@ -15,7 +15,7 @@ esac
 
 echo "Detected: ${OS}/${ARCH}"
 
-LATEST=$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" | grep "browser_download_url.*${OS}_${ARCH}" | head -1 | cut -d '"' -f 4)
+LATEST=$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" | grep "browser_download_url.*${OS}-${ARCH}" | head -1 | cut -d '"' -f 4)
 if [ -z "$LATEST" ]; then
     echo "No release found for ${OS}/${ARCH}"
     exit 1
