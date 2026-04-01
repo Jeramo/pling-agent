@@ -98,15 +98,27 @@ func downloadAndReplace(version string) error {
 	}
 
 	// Limit download size to 50 MB
-	_, err = io.Copy(tmp, io.LimitReader(resp.Body, 50*1024*1024))
+	n, err := io.Copy(tmp, io.LimitReader(resp.Body, 50*1024*1024))
 	tmp.Close()
 	if err != nil {
 		os.Remove(tmpPath)
 		return fmt.Errorf("write: %w", err)
 	}
 
+	// Reject suspiciously small downloads (truncated/empty)
+	if n < 100*1024 {
+		os.Remove(tmpPath)
+		return fmt.Errorf("download too small (%d bytes), likely corrupted", n)
+	}
+
+	// Backup current binary before replacing
+	backupPath := realExe + ".backup"
+	os.Rename(realExe, backupPath) // best-effort, ignore error
+
 	// Atomic replace: rename new over old
 	if err := os.Rename(tmpPath, realExe); err != nil {
+		// Restore backup on failure
+		os.Rename(backupPath, realExe)
 		os.Remove(tmpPath)
 		return fmt.Errorf("rename: %w", err)
 	}

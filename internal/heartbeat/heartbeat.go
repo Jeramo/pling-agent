@@ -39,8 +39,8 @@ func beat(client *api.Client, hostname, version string) {
 		log.Printf("[heartbeat] returned status %d", status)
 	}
 
-	// Check for updates after each successful heartbeat
+	// Check for updates after each successful heartbeat (non-blocking)
 	if version != "dev" {
-		updater.CheckAndUpdate(client, version)
+		go updater.CheckAndUpdate(client, version)
 	}
 }
