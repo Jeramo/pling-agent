@@ -42,6 +42,17 @@ func StartLoop(ctx context.Context, client *api.Client) {
 			}
 			schedules = resp.Schedules
 
+			// Clean up stale entries for deleted schedules
+			activeIDs := make(map[string]bool, len(schedules))
+			for _, s := range schedules {
+				activeIDs[s.ID] = true
+			}
+			for id := range nextRun {
+				if !activeIDs[id] {
+					delete(nextRun, id)
+				}
+			}
+
 			now := time.Now()
 			for _, s := range schedules {
 				due, exists := nextRun[s.ID]
@@ -53,7 +64,11 @@ func StartLoop(ctx context.Context, client *api.Client) {
 					continue
 				}
 
-				log.Printf("[schedule] running %s: %s", s.ID, s.Command)
+				cmdPreview := s.Command
+				if len(cmdPreview) > 80 {
+					cmdPreview = cmdPreview[:80] + "..."
+				}
+				log.Printf("[schedule] running %s: %s", s.ID, cmdPreview)
 				result := RunCommand(ctx, s.Command, 5*time.Minute)
 				result.ScheduleID = s.ID
 

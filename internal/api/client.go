@@ -44,7 +44,10 @@ func (c *Client) Post(path string, body any) ([]byte, int, error) {
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("read body: %w", err)
+	}
 	return respBody, resp.StatusCode, nil
 }
 

@@ -21,21 +21,26 @@ if [ -z "$LATEST" ]; then
     exit 1
 fi
 
+TMPBIN=$(mktemp /tmp/pling-agent.XXXXXX)
 echo "Downloading ${LATEST}..."
-curl -sL "$LATEST" -o /tmp/pling-agent
-chmod +x /tmp/pling-agent
-sudo mv /tmp/pling-agent "$INSTALL_DIR/pling-agent"
+curl -sL "$LATEST" -o "$TMPBIN"
+chmod +x "$TMPBIN"
+sudo mv "$TMPBIN" "$INSTALL_DIR/pling-agent"
 echo "Installed to ${INSTALL_DIR}/pling-agent"
 
 if [ ! -f "${CONFIG_DIR}/config.toml" ]; then
     sudo mkdir -p "$CONFIG_DIR"
+    sudo chmod 700 "$CONFIG_DIR"
     printf "Enter your Pling API token: "
     read -r TOKEN
-    sudo tee "${CONFIG_DIR}/config.toml" > /dev/null <<EOF
+    TMPCONF=$(mktemp /tmp/pling-config.XXXXXX)
+    chmod 600 "$TMPCONF"
+    cat > "$TMPCONF" <<EOF
 token = "${TOKEN}"
 api_url = "https://api.plingpush.com"
 metrics_interval = 60
 EOF
+    sudo mv "$TMPCONF" "${CONFIG_DIR}/config.toml"
     sudo chmod 600 "${CONFIG_DIR}/config.toml"
     echo "Config written to ${CONFIG_DIR}/config.toml"
 fi
