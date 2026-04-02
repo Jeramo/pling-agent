@@ -32,7 +32,7 @@ if [ ! -f "${CONFIG_DIR}/config.toml" ]; then
     sudo mkdir -p "$CONFIG_DIR"
     sudo chmod 700 "$CONFIG_DIR"
     printf "Enter your Pling API token: "
-    read -r TOKEN
+    read -r TOKEN < /dev/tty
     TMPCONF=$(mktemp /tmp/pling-config.XXXXXX)
     chmod 600 "$TMPCONF"
     cat > "$TMPCONF" <<EOF
@@ -79,7 +79,8 @@ elif [ "$OS" = "darwin" ]; then
 </dict>
 </plist>
 EOF
-    launchctl load "$PLIST"
+    launchctl bootout gui/$(id -u) "$PLIST" 2>/dev/null || true
+    launchctl bootstrap gui/$(id -u) "$PLIST"
     echo "LaunchAgent started"
 fi
 
