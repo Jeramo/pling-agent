@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jeramo/pling-agent/internal/api"
+	"github.com/jeramo/pling-agent/internal/updater"
 )
 
 func StartLoop(ctx context.Context, client *api.Client, hostname, version string) {
@@ -36,5 +37,10 @@ func beat(client *api.Client, hostname, version string) {
 	}
 	if status != 200 {
 		log.Printf("[heartbeat] returned status %d", status)
+	}
+
+	// Check for updates after each successful heartbeat (non-blocking)
+	if version != "dev" {
+		go updater.CheckAndUpdate(client, version)
 	}
 }

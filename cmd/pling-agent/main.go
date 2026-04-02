@@ -14,6 +14,7 @@ import (
 	"github.com/jeramo/pling-agent/internal/heartbeat"
 	"github.com/jeramo/pling-agent/internal/metrics"
 	"github.com/jeramo/pling-agent/internal/schedule"
+	"github.com/jeramo/pling-agent/internal/share"
 )
 
 var version = "dev"
@@ -44,6 +45,7 @@ func main() {
 	go metrics.StartLoop(ctx, client, hostname, interval)
 	go heartbeat.StartLoop(ctx, client, hostname, version)
 	go schedule.StartLoop(ctx, client)
+	go share.StartLoop(ctx, client)
 
 	<-ctx.Done()
 	log.Println("shutting down")
