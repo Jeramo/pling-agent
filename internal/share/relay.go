@@ -259,6 +259,8 @@ func runRelay(ctx context.Context, client *api.Client, task Task) error {
 	// ptmx.Read() in the PTY→WS goroutine unblocks immediately.
 	cmd.Process.Kill()
 	ptmx.Close()
+	// Unblock conn.ReadMessage() in the WS→PTY goroutine
+	conn.SetReadDeadline(time.Now().Add(1 * time.Second))
 
 	wg.Wait()
 	cmd.Wait()

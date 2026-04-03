@@ -9,15 +9,27 @@ import (
 	"github.com/jeramo/pling-agent/internal/updater"
 )
 
+var updateCh = make(chan struct{}, 1)
+
 func StartLoop(ctx context.Context, client *api.Client, hostname, version string) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
+
+	// Single goroutine for update checks — prevents unbounded goroutine spawning
+	if version != "dev" {
+		go func() {
+			for range updateCh {
+				updater.CheckAndUpdate(client, version)
+			}
+		}()
+	}
 
 	beat(client, hostname, version)
 
 	for {
 		select {
 		case <-ctx.Done():
+			close(updateCh)
 			return
 		case <-ticker.C:
 			beat(client, hostname, version)
@@ -39,8 +51,12 @@ func beat(client *api.Client, hostname, version string) {
 		log.Printf("[heartbeat] returned status %d", status)
 	}
 
-	// Check for updates after each successful heartbeat (non-blocking)
+	// Check for updates after each successful heartbeat (non-blocking, single goroutine)
 	if version != "dev" {
-		go updater.CheckAndUpdate(client, version)
+		select {
+		case updateCh <- struct{}{}:
+		default:
+			// Update check already in progress, skip
+		}
 	}
 }
