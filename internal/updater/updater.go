@@ -143,7 +143,12 @@ func downloadAndReplace(version string) error {
 	}
 
 	// Parse expected checksum (first hex field, handles "hash  filename" format)
-	expectedHash := strings.TrimSpace(strings.Fields(string(csBody))[0])
+	fields := strings.Fields(string(csBody))
+	if len(fields) == 0 {
+		os.Remove(tmpPath)
+		return fmt.Errorf("empty checksum file")
+	}
+	expectedHash := strings.TrimSpace(fields[0])
 	if len(expectedHash) != 64 {
 		os.Remove(tmpPath)
 		return fmt.Errorf("invalid checksum format: %q", string(csBody))
