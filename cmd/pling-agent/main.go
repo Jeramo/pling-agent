@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -42,11 +43,28 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	go metrics.StartLoop(ctx, client, hostname, interval)
-	go heartbeat.StartLoop(ctx, client, hostname, version)
-	go schedule.StartLoop(ctx, client)
-	go share.StartLoop(ctx, client)
+	var wg sync.WaitGroup
+
+	wg.Add(4)
+	go func() { defer wg.Done(); metrics.StartLoop(ctx, client, hostname, interval) }()
+	go func() { defer wg.Done(); heartbeat.StartLoop(ctx, client, hostname, version) }()
+	go func() { defer wg.Done(); schedule.StartLoop(ctx, client) }()
+	go func() { defer wg.Done(); share.StartLoop(ctx, client) }()
 
 	<-ctx.Done()
-	log.Println("shutting down")
+	log.Println("shutting down, waiting for in-flight operations...")
+
+	// Wait for goroutines with a timeout so we don't hang forever
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Println("graceful shutdown complete")
+	case <-time.After(10 * time.Second):
+		log.Println("shutdown timed out, exiting")
+	}
 }

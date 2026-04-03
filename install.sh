@@ -35,13 +35,15 @@ if [ ! -f "${CONFIG_DIR}/config.toml" ]; then
     read -r TOKEN < /dev/tty
     TMPCONF=$(mktemp /tmp/pling-config.XXXXXX)
     chmod 600 "$TMPCONF"
-    cat > "$TMPCONF" <<EOF
-token = "${TOKEN}"
+    cat > "$TMPCONF" <<'EOF'
 api_url = "https://api.plingpush.com"
 metrics_interval = 60
 EOF
+    # Write token separately to avoid shell injection from user input
+    printf 'token = "%s"\n' "$TOKEN" >> "$TMPCONF"
     sudo mv "$TMPCONF" "${CONFIG_DIR}/config.toml"
     sudo chmod 600 "${CONFIG_DIR}/config.toml"
+    sudo chown "$(id -u):$(id -g)" "${CONFIG_DIR}/config.toml"
     echo "Config written to ${CONFIG_DIR}/config.toml"
 fi
 

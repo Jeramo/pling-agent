@@ -21,6 +21,20 @@ import (
 
 var updateMu sync.Mutex
 
+// resolvedExePath is captured at startup before any update replaces the binary.
+var resolvedExePath string
+
+func init() {
+	exe, err := os.Executable()
+	if err == nil {
+		if real, err := filepath.EvalSymlinks(exe); err == nil {
+			resolvedExePath = real
+		} else {
+			resolvedExePath = exe
+		}
+	}
+}
+
 // CheckAndUpdate checks the backend for the latest version and self-updates if outdated.
 // Called after each heartbeat. If an update is applied, the process restarts via exec.
 func CheckAndUpdate(client *api.Client, currentVersion string) {
@@ -89,16 +103,10 @@ func downloadAndReplace(version string) error {
 		return fmt.Errorf("download returned %d", resp.StatusCode)
 	}
 
-	// Write to temp file next to the current binary
-	exe, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("executable path: %w", err)
-	}
-
-	// Follow symlinks to get the real path
-	realExe, err := evalSymlinks(exe)
-	if err != nil {
-		realExe = exe
+	// Use the executable path captured at startup
+	realExe := resolvedExePath
+	if realExe == "" {
+		return fmt.Errorf("executable path not resolved at startup")
 	}
 
 	tmpPath := realExe + ".update"
@@ -192,9 +200,10 @@ func downloadAndReplace(version string) error {
 }
 
 func restart() {
-	exe, err := os.Executable()
-	if err != nil {
-		log.Printf("[updater] cannot find executable for restart: %v", err)
+	// Use the executable path captured at startup (before update replaced binary)
+	exe := resolvedExePath
+	if exe == "" {
+		log.Printf("[updater] cannot find executable for restart")
 		os.Exit(1)
 	}
 	// Re-exec ourselves with the same args

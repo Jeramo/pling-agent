@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"sync"
@@ -121,7 +122,7 @@ func runRelay(ctx context.Context, client *api.Client, task Task) error {
 	// Build WebSocket URL with host role and password hash
 	wsURL := task.WsURL + "?role=host"
 	if task.PasswordHash != nil && *task.PasswordHash != "" {
-		wsURL += "&passwordHash=" + *task.PasswordHash
+		wsURL += "&passwordHash=" + url.QueryEscape(*task.PasswordHash)
 	}
 
 	// Connect WebSocket to the Durable Object
@@ -163,6 +164,7 @@ func runRelay(ctx context.Context, client *api.Client, task Task) error {
 	log.Printf("[share] relay active for room %s (shell=%s)", task.RoomID, shell)
 
 	var wg sync.WaitGroup
+	var wsMu sync.Mutex // protects all WebSocket writes
 	relayCtx, relayCancel := context.WithCancel(ctx)
 	defer relayCancel()
 
@@ -186,7 +188,10 @@ func runRelay(ctx context.Context, client *api.Client, task Task) error {
 				return
 			}
 			if n > 0 {
-				if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
+				wsMu.Lock()
+				err := conn.WriteMessage(websocket.BinaryMessage, buf[:n])
+				wsMu.Unlock()
+				if err != nil {
 					log.Printf("[share] ws write error: %v", err)
 					return
 				}
@@ -242,7 +247,10 @@ func runRelay(ctx context.Context, client *api.Client, task Task) error {
 			case <-relayCtx.Done():
 				return
 			case <-ticker.C:
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				wsMu.Lock()
+				err := conn.WriteMessage(websocket.PingMessage, nil)
+				wsMu.Unlock()
+				if err != nil {
 					return
 				}
 			}
