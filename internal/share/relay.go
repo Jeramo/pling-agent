@@ -152,11 +152,6 @@ func runRelay(ctx context.Context, client *api.Client, task Task) error {
 	if err != nil {
 		return fmt.Errorf("pty start: %w", err)
 	}
-	defer func() {
-		ptmx.Close()
-		cmd.Process.Kill()
-		cmd.Wait()
-	}()
 
 	// Set initial terminal size
 	pty.Setsize(ptmx, &pty.Winsize{Rows: 24, Cols: 80})
@@ -257,7 +252,16 @@ func runRelay(ctx context.Context, client *api.Client, task Task) error {
 		}
 	}()
 
+	// Wait for relayCtx to be cancelled (by any goroutine exiting or parent ctx)
+	<-relayCtx.Done()
+
+	// Kill the process and close the PTY *before* wg.Wait() so the blocking
+	// ptmx.Read() in the PTY→WS goroutine unblocks immediately.
+	cmd.Process.Kill()
+	ptmx.Close()
+
 	wg.Wait()
+	cmd.Wait()
 	log.Printf("[share] relay ended for room %s", task.RoomID)
 	return nil
 }
