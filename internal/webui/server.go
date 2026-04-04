@@ -149,9 +149,27 @@ func maskToken(t string) string {
 func page(cfg *config.Config, version string) string {
 	hostname := cfg.Hostname()
 	aliases := cfg.HostAliases()
-	aliasHTML := ""
+
+	// Filter aliases: only show useful ones (IPv4, Tailscale DNS, non-link-local)
+	var filtered []string
 	for _, a := range aliases {
-		aliasHTML += `<span class="alias">` + a + `</span>`
+		ip := net.ParseIP(a)
+		if ip != nil {
+			if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+				continue
+			}
+			// Skip ULA (fd00::/8, fc00::/7) except Tailscale
+			if len(ip) == net.IPv6len && ip.To4() == nil {
+				if ip[0] == 0xfd || ip[0] == 0xfc {
+					continue
+				}
+			}
+		}
+		filtered = append(filtered, a)
+	}
+	aliasHTML := ""
+	for _, a := range filtered {
+		aliasHTML += `<span class="tag">` + a + `</span>`
 	}
 
 	remoteChecked := ""
@@ -160,94 +178,116 @@ func page(cfg *config.Config, version string) string {
 	}
 
 	return `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pling Agent</title>
 <style>
+:root{--bg:#111;--surface:#191919;--border:#252525;--fg:#e0e0e0;--dim:#777;--accent:#a78bfa;--green:#34d399;--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;--mono:"SF Mono","Geist Mono",ui-monospace,monospace}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;background:#0d0f14;color:#e4e4e7;min-height:100vh;padding:24px}
-.container{max-width:520px;margin:0 auto}
-h1{font-size:20px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
-.version{font-size:12px;font-weight:500;color:#71717a;background:#27272a;padding:2px 8px;border-radius:6px}
-.subtitle{font-size:13px;color:#71717a;margin-bottom:24px}
-.card{background:#18181b;border:1px solid #27272a;border-radius:12px;padding:16px;margin-bottom:12px}
-.card h2{font-size:13px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
-.row{display:flex;justify-content:space-between;align-items:center;padding:8px 0}
-.row:not(:last-child){border-bottom:1px solid #27272a}
-.row label{font-size:14px;color:#e4e4e7}
-.row .hint{font-size:11px;color:#71717a;margin-top:2px}
-.row input[type=text],.row input[type=number]{background:#0d0f14;border:1px solid #3f3f46;border-radius:6px;padding:6px 10px;color:#e4e4e7;font-size:13px;width:180px;text-align:right;font-family:ui-monospace,monospace}
-.row input:focus{outline:none;border-color:#a78bfa}
-.toggle{position:relative;width:42px;height:24px;cursor:pointer}
-.toggle input{opacity:0;width:0;height:0}
-.toggle .slider{position:absolute;inset:0;background:#3f3f46;border-radius:12px;transition:.2s}
-.toggle input:checked+.slider{background:#a78bfa}
-.toggle .slider::before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
-.toggle input:checked+.slider::before{transform:translateX(18px)}
-.aliases{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.alias{font-size:11px;font-family:ui-monospace,monospace;background:#27272a;color:#a1a1aa;padding:3px 8px;border-radius:6px}
-.hostname{font-size:14px;font-family:ui-monospace,monospace;color:#a78bfa}
-.path{font-size:11px;font-family:ui-monospace,monospace;color:#71717a;word-break:break-all}
-.status{display:flex;align-items:center;gap:6px;font-size:13px;color:#4ade80}
-.status .dot{width:8px;height:8px;border-radius:50%;background:#4ade80}
-.btn{background:#a78bfa;color:#000;border:none;padding:8px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-top:16px;width:100%}
-.btn:hover{background:#8b5cf6}
-.btn:disabled{opacity:.4;cursor:default}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#4ade80;color:#000;padding:8px 20px;border-radius:8px;font-size:13px;font-weight:600;opacity:0;transition:.3s}
-.toast.show{opacity:1}
+body{font-family:var(--font);background:var(--bg);color:var(--fg);min-height:100vh;-webkit-font-smoothing:antialiased}
+.wrap{max-width:480px;margin:0 auto;padding:32px 20px 48px}
+
+/* Header */
+header{margin-bottom:32px}
+header h1{font-size:15px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+header h1 span{font-size:11px;font-weight:500;color:var(--dim);background:var(--surface);border:1px solid var(--border);padding:1px 7px;border-radius:4px;font-family:var(--mono)}
+.host{font-size:13px;color:var(--dim);margin-top:4px;font-family:var(--mono)}
+.indicator{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;margin-right:2px}
+
+/* Section */
+section{margin-bottom:24px}
+section h2{font-size:11px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;padding-left:2px}
+
+/* Card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.field{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;min-height:44px}
+.field+.field{border-top:1px solid var(--border)}
+.field .label{font-size:13px;color:var(--fg)}
+.field .sub{font-size:11px;color:var(--dim);margin-top:1px}
+.field .value{font-size:13px;color:var(--dim);font-family:var(--mono);text-align:right;max-width:55%;word-break:break-all}
+.field .value.accent{color:var(--accent)}
+.field input[type=text],.field input[type=number]{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--fg);font-size:12px;font-family:var(--mono);width:160px;text-align:right}
+.field input:focus{outline:none;border-color:var(--accent)}
+
+/* Tags */
+.tags{display:flex;flex-wrap:wrap;gap:5px;padding:8px 14px 12px}
+.tag{font-size:11px;font-family:var(--mono);color:var(--dim);background:var(--bg);padding:2px 8px;border-radius:4px;border:1px solid var(--border)}
+
+/* Toggle */
+.sw{position:relative;width:38px;height:22px;flex-shrink:0}
+.sw input{opacity:0;width:0;height:0}
+.sw b{position:absolute;inset:0;background:#333;border-radius:11px;cursor:pointer;transition:.2s}
+.sw b::after{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.sw input:checked+b{background:var(--accent)}
+.sw input:checked+b::after{transform:translateX(16px)}
+
+/* Button */
+.btn{display:block;width:100%;padding:10px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;margin-top:8px;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn:disabled{opacity:.3;cursor:default}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(12px);background:var(--green);color:#000;padding:6px 18px;border-radius:6px;font-size:12px;font-weight:600;opacity:0;transition:.25s;pointer-events:none}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
-<div class="container">
-<h1>⚡ Pling Agent <span class="version">v` + version + `</span></h1>
-<p class="subtitle">Running on ` + hostname + `</p>
+<div class="wrap">
 
-<div class="card">
-  <h2>Status</h2>
-  <div class="row"><label>State</label><span class="status"><span class="dot"></span>Running</span></div>
-  <div class="row"><label>Hostname</label><span class="hostname">` + hostname + `</span></div>
-  <div class="row">
-    <label>Aliases</label>
+<header>
+  <h1>Pling Agent <span>` + version + `</span></h1>
+  <div class="host"><span class="indicator"></span> ` + hostname + `</div>
+</header>
+
+<section>
+  <h2>Network</h2>
+  <div class="card">
+    <div class="field"><span class="label">Hostname</span><span class="value accent">` + hostname + `</span></div>
   </div>
-  <div class="aliases">` + aliasHTML + `</div>
-</div>
+  <div class="tags">` + aliasHTML + `</div>
+</section>
 
-<div class="card">
+<section>
   <h2>Permissions</h2>
-  <div class="row">
-    <div><label>Scheduled commands</label><div class="hint">Allow the agent to execute commands from Pling</div></div>
-    <label class="toggle"><input type="checkbox" id="allowRemote" ` + remoteChecked + `><span class="slider"></span></label>
+  <div class="card">
+    <div class="field">
+      <div><span class="label">Scheduled commands</span><div class="sub">Execute commands sent from the Pling app</div></div>
+      <label class="sw"><input type="checkbox" id="allowRemote" ` + remoteChecked + `><b></b></label>
+    </div>
   </div>
-</div>
+</section>
 
-<div class="card">
+<section>
   <h2>Settings</h2>
-  <div class="row">
-    <label>Metrics interval (sec)</label>
-    <input type="number" id="interval" value="` + strconv.Itoa(cfg.MetricsInterval) + `" min="10" max="3600">
+  <div class="card">
+    <div class="field">
+      <span class="label">Metrics interval</span>
+      <input type="number" id="interval" value="` + strconv.Itoa(cfg.MetricsInterval) + `" min="10" max="3600">
+    </div>
+    <div class="field">
+      <span class="label">Hostname override</span>
+      <input type="text" id="hostnameOverride" value="` + cfg.HostnameOverride + `" placeholder="auto">
+    </div>
   </div>
-  <div class="row">
-    <label>Hostname override</label>
-    <input type="text" id="hostnameOverride" value="` + cfg.HostnameOverride + `" placeholder="auto-detect">
-  </div>
-</div>
+</section>
 
-<div class="card">
-  <h2>Config</h2>
-  <div class="row">
-    <div><label>API token</label><div class="hint">` + maskToken(cfg.Token) + `</div></div>
-    <input type="text" id="apiToken" value="" placeholder="paste new token">
+<section>
+  <h2>Authentication</h2>
+  <div class="card">
+    <div class="field">
+      <div><span class="label">API token</span><div class="sub">` + maskToken(cfg.Token) + `</div></div>
+      <input type="text" id="apiToken" value="" placeholder="paste new token">
+    </div>
+    <div class="field"><span class="label">API endpoint</span><span class="value">` + cfg.APIURL + `</span></div>
   </div>
-  <div class="row"><label>API URL</label><span class="path">` + cfg.APIURL + `</span></div>
-  <div class="row"><label>Config file</label><span class="path">` + config.ConfigPath() + `</span></div>
-</div>
+</section>
 
-<button class="btn" id="saveBtn" onclick="save()">Save changes</button>
+<button class="btn" id="saveBtn" onclick="save()">Save</button>
 <div class="toast" id="toast">Saved</div>
-</div>
 
+</div>
 <script>
 async function save(){
   const btn=document.getElementById('saveBtn');
@@ -263,7 +303,7 @@ async function save(){
     const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(r.ok){
       document.getElementById('apiToken').value='';
-      const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);
+      const t=document.getElementById('toast');t.classList.add('on');setTimeout(()=>t.classList.remove('on'),1800);
       if(tok.length>0) setTimeout(()=>location.reload(),500);
     }
   }catch(e){console.error(e)}
