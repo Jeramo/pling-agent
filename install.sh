@@ -84,6 +84,33 @@ EOF
     launchctl bootout gui/$(id -u) "$PLIST" 2>/dev/null || true
     launchctl bootstrap gui/$(id -u) "$PLIST"
     echo "LaunchAgent started"
+
+    # Install menu bar tray icon
+    TRAY_URL=$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" | grep "browser_download_url.*pling-tray-darwin-${ARCH}" | head -1 | cut -d '"' -f 4)
+    if [ -n "$TRAY_URL" ]; then
+        TMPTRAY=$(mktemp /tmp/pling-tray.XXXXXX)
+        curl -sL "$TRAY_URL" -o "$TMPTRAY"
+        chmod +x "$TMPTRAY"
+        sudo mv "$TMPTRAY" "$INSTALL_DIR/pling-tray"
+
+        TRAY_PLIST="$HOME/Library/LaunchAgents/com.jeramo.pling-tray.plist"
+        cat > "$TRAY_PLIST" <<TEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.jeramo.pling-tray</string>
+    <key>ProgramArguments</key><array><string>${INSTALL_DIR}/pling-tray</string></array>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+    <key>LSUIElement</key><true/>
+</dict>
+</plist>
+TEOF
+        launchctl bootout gui/$(id -u) "$TRAY_PLIST" 2>/dev/null || true
+        launchctl bootstrap gui/$(id -u) "$TRAY_PLIST"
+        echo "Menu bar icon installed"
+    fi
 fi
 
 echo "Done! pling-agent is running."
