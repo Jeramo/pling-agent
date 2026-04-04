@@ -35,10 +35,11 @@ func main() {
 	}
 
 	hostname := cfg.Hostname()
+	aliases := cfg.HostAliases()
 	interval := time.Duration(cfg.MetricsInterval) * time.Second
 	client := api.New(cfg.APIURL, cfg.Token)
 
-	log.Printf("pling-agent %s starting (host=%s, interval=%s)", version, hostname, interval)
+	log.Printf("pling-agent %s starting (host=%s, aliases=%v, interval=%s)", version, hostname, aliases, interval)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -47,7 +48,7 @@ func main() {
 
 	wg.Add(4)
 	go func() { defer wg.Done(); metrics.StartLoop(ctx, client, hostname, interval) }()
-	go func() { defer wg.Done(); heartbeat.StartLoop(ctx, client, hostname, version) }()
+	go func() { defer wg.Done(); heartbeat.StartLoop(ctx, client, hostname, version, aliases) }()
 	go func() { defer wg.Done(); schedule.StartLoop(ctx, client) }()
 	go func() { defer wg.Done(); share.StartLoop(ctx, client) }()
 
