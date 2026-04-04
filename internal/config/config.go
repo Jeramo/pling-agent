@@ -12,17 +12,45 @@ import (
 )
 
 type Config struct {
-	Token            string `toml:"token"`
-	APIURL           string `toml:"api_url"`
-	MetricsInterval  int    `toml:"metrics_interval"`
-	HostnameOverride string `toml:"hostname_override"`
+	Token               string `toml:"token"`
+	APIURL              string `toml:"api_url"`
+	MetricsInterval     int    `toml:"metrics_interval"`
+	HostnameOverride    string `toml:"hostname_override"`
+	AllowRemoteCommands bool   `toml:"allow_remote_commands"`
+	WebUIPort           int    `toml:"webui_port"`
 }
 
 func DefaultConfig() Config {
 	return Config{
-		APIURL:          "https://agent.plingpush.com",
-		MetricsInterval: 60,
+		APIURL:              "https://agent.plingpush.com",
+		MetricsInterval:     60,
+		AllowRemoteCommands: true,
+		WebUIPort:           9876,
 	}
+}
+
+// configPath returns the path of the loaded (or default) config file.
+var loadedConfigPath string
+
+func ConfigPath() string {
+	if loadedConfigPath != "" {
+		return loadedConfigPath
+	}
+	return "/etc/pling-agent/config.toml"
+}
+
+// Save writes the config back to disk.
+func (c Config) Save() error {
+	path := ConfigPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return toml.NewEncoder(f).Encode(c)
 }
 
 func Load() (Config, error) {
@@ -39,6 +67,7 @@ func Load() (Config, error) {
 			if _, err := toml.DecodeFile(p, &cfg); err != nil {
 				return cfg, err
 			}
+			loadedConfigPath = p
 			break
 		}
 	}

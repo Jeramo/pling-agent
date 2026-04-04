@@ -16,6 +16,7 @@ import (
 	"github.com/jeramo/pling-agent/internal/metrics"
 	"github.com/jeramo/pling-agent/internal/schedule"
 	"github.com/jeramo/pling-agent/internal/share"
+	"github.com/jeramo/pling-agent/internal/webui"
 )
 
 var version = "dev"
@@ -46,11 +47,12 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	wg.Add(4)
+	wg.Add(5)
 	go func() { defer wg.Done(); metrics.StartLoop(ctx, client, hostname, interval) }()
 	go func() { defer wg.Done(); heartbeat.StartLoop(ctx, client, hostname, version, aliases) }()
-	go func() { defer wg.Done(); schedule.StartLoop(ctx, client) }()
+	go func() { defer wg.Done(); schedule.StartLoop(ctx, client, &cfg) }()
 	go func() { defer wg.Done(); share.StartLoop(ctx, client) }()
+	go func() { defer wg.Done(); webui.Start(ctx, &cfg, version) }()
 
 	<-ctx.Done()
 	log.Println("shutting down, waiting for in-flight operations...")

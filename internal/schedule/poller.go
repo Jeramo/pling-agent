@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jeramo/pling-agent/internal/api"
+	"github.com/jeramo/pling-agent/internal/config"
 )
 
 type Schedule struct {
@@ -20,7 +21,7 @@ type ScheduleResponse struct {
 	Schedules []Schedule `json:"schedules"`
 }
 
-func StartLoop(ctx context.Context, client *api.Client) {
+func StartLoop(ctx context.Context, client *api.Client, cfg *config.Config) {
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 
@@ -61,6 +62,11 @@ func StartLoop(ctx context.Context, client *api.Client) {
 					continue
 				}
 				if now.Before(due) {
+					continue
+				}
+				if !cfg.AllowRemoteCommands {
+					log.Printf("[schedule] skipping %s — remote commands disabled", s.ID)
+					nextRun[s.ID] = now.Add(parseInterval(s.Interval))
 					continue
 				}
 
