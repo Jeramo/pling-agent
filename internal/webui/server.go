@@ -158,10 +158,15 @@ func uninstall() {
 		exec.Command("systemctl", "disable", "pling-agent").Run()
 		os.Remove("/etc/systemd/system/pling-agent.service")
 		exec.Command("systemctl", "daemon-reload").Run()
+	case "windows":
+		exec.Command("sc", "stop", "PlingAgent").Run()
+		exec.Command("sc", "delete", "PlingAgent").Run()
+		os.RemoveAll(filepath.Join(os.Getenv("ProgramData"), "pling-agent"))
 	}
 
 	// Remove binaries
 	os.Remove(filepath.Join(dir, "pling-agent"))
+	os.Remove(filepath.Join(dir, "pling-agent.exe"))
 	os.Remove(filepath.Join(dir, "pling-tray"))
 	os.Remove(exe + ".backup")
 	os.Remove(exe + ".update")
