@@ -15,6 +15,7 @@ all:
 	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/pling-agent-darwin-amd64 ./cmd/pling-agent
 	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/pling-agent-darwin-arm64 ./cmd/pling-agent
 	GOOS=freebsd GOARCH=amd64 go build $(LDFLAGS) -o dist/pling-agent-freebsd-amd64 ./cmd/pling-agent
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/pling-agent-windows-amd64.exe ./cmd/pling-agent
 	$(MAKE) tray
 
 clean:

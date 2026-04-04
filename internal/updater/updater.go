@@ -9,11 +9,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/jeramo/pling-agent/internal/api"
@@ -59,8 +59,45 @@ func CheckAndUpdate(client *api.Client, currentVersion string) {
 		return
 	}
 
+	// On macOS, also install/update the menu bar tray if not present
+	if runtime.GOOS == "darwin" {
+		installTray(latest)
+	}
+
 	log.Printf("[updater] updated to %s, restarting...", latest)
 	restart()
+}
+
+func installTray(version string) {
+	trayPath := filepath.Join(filepath.Dir(resolvedExePath), "pling-tray")
+	url := fmt.Sprintf(
+		"https://github.com/Jeramo/pling-agent/releases/download/v%s/pling-tray-%s-%s",
+		version, runtime.GOOS, runtime.GOARCH,
+	)
+	log.Printf("[updater] downloading tray from %s", url)
+
+	resp, err := (&http.Client{Timeout: 60 * time.Second}).Get(url)
+	if err != nil || resp.StatusCode != 200 {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		log.Printf("[updater] tray download failed (non-critical)")
+		return
+	}
+	defer resp.Body.Close()
+
+	tmp, err := os.CreateTemp(filepath.Dir(trayPath), "pling-tray-*.tmp")
+	if err != nil {
+		return
+	}
+	io.Copy(tmp, io.LimitReader(resp.Body, 50*1024*1024))
+	tmp.Close()
+	os.Chmod(tmp.Name(), 0755)
+	os.Rename(tmp.Name(), trayPath)
+
+	// Sign ad-hoc on macOS so it doesn't get killed
+	exec.Command("codesign", "-s", "-", "-f", trayPath).Run()
+	log.Printf("[updater] tray installed at %s", trayPath)
 }
 
 func fetchLatestVersion(client *api.Client) (string, error) {
@@ -206,8 +243,5 @@ func restart() {
 		log.Printf("[updater] cannot find executable for restart")
 		os.Exit(1)
 	}
-	// Re-exec ourselves with the same args
-	syscall.Exec(exe, os.Args, os.Environ())
-	// If exec fails, just exit — the service manager (systemd/launchd) will restart us
-	os.Exit(0)
+	restartExec(exe)
 }
