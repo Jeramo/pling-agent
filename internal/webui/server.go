@@ -83,7 +83,7 @@ func Start(ctx context.Context, cfg *config.Config, version string) {
 		http.Error(w, "method not allowed", 405)
 	})
 
-	// Auth middleware — requests from non-localhost must include ?token=<first 16 chars of API token>
+	// Auth middleware — public internet requires token, local/private/Tailscale is trusted
 	authPin := ""
 	if len(cfg.Token) >= 16 {
 		authPin = cfg.Token[:16]
@@ -93,8 +93,7 @@ func Start(ctx context.Context, cfg *config.Config, version string) {
 		if host, _, err := net.SplitHostPort(ip); err == nil {
 			ip = host
 		}
-		isLocal := ip == "127.0.0.1" || ip == "::1"
-		if !isLocal && r.URL.Query().Get("token") != authPin {
+		if !isTrustedIP(ip) && r.URL.Query().Get("token") != authPin {
 			http.Error(w, "unauthorized — append ?token=<first 16 chars of your API token>", 401)
 			return
 		}
@@ -113,6 +112,31 @@ func Start(ctx context.Context, cfg *config.Config, version string) {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Printf("[webui] failed to start: %v", err)
 	}
+}
+
+// isTrustedIP returns true for localhost, private LAN, and Tailscale ranges.
+func isTrustedIP(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	// Localhost
+	if parsed.IsLoopback() {
+		return true
+	}
+	// Private ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+	if parsed.IsPrivate() {
+		return true
+	}
+	// Tailscale CGNAT: 100.64.0.0/10
+	if ip4 := parsed.To4(); ip4 != nil && ip4[0] == 100 && ip4[1] >= 64 && ip4[1] <= 127 {
+		return true
+	}
+	// Link-local
+	if parsed.IsLinkLocalUnicast() {
+		return true
+	}
+	return false
 }
 
 func maskToken(t string) string {
