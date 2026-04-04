@@ -2,7 +2,9 @@ package config
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -56,6 +58,14 @@ func Load() (Config, error) {
 func (c Config) Hostname() string {
 	if c.HostnameOverride != "" {
 		return c.HostnameOverride
+	}
+	// On macOS, use scutil to get the Bonjour-resolvable hostname
+	// so it matches what iOS discovers via mDNS.
+	if out, err := exec.Command("scutil", "--get", "LocalHostName").Output(); err == nil {
+		name := strings.TrimSpace(string(out))
+		if name != "" {
+			return name + ".local"
+		}
 	}
 	name, _ := os.Hostname()
 	return name
