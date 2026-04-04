@@ -56,6 +56,22 @@ sc.exe description $serviceName "Pling Agent - 24/7 server monitoring and schedu
 sc.exe failure $serviceName reset= 60 actions= restart/10000/restart/30000/restart/60000 | Out-Null
 Start-Service -Name $serviceName
 
+# Install system tray icon
+$trayAsset = $release.assets | Where-Object { $_.name -eq "pling-tray-windows-$arch.exe" } | Select-Object -First 1
+if ($trayAsset) {
+    $trayPath = Join-Path $installDir "pling-tray.exe"
+    Invoke-WebRequest -Uri $trayAsset.browser_download_url -OutFile $trayPath
+    # Add to startup
+    $startupFolder = [Environment]::GetFolderPath("Startup")
+    $shortcutPath = Join-Path $startupFolder "Pling Tray.lnk"
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = $trayPath
+    $shortcut.Save()
+    Start-Process $trayPath
+    Write-Host "System tray icon installed"
+}
+
 $ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch "Loopback" -and $_.PrefixOrigin -ne "WellKnown" } | Select-Object -First 1).IPAddress
 Write-Host ""
 Write-Host "Done! Pling Agent is running." -ForegroundColor Green

@@ -59,8 +59,8 @@ func CheckAndUpdate(client *api.Client, currentVersion string) {
 		return
 	}
 
-	// On macOS, also install/update the menu bar tray if not present
-	if runtime.GOOS == "darwin" {
+	// Install/update the system tray on supported platforms
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
 		installTray(latest)
 	}
 
