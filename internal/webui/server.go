@@ -247,8 +247,10 @@ func page(cfg *config.Config, version string) string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pling Agent</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-mono/style.css">
 <style>
-:root{--bg:#111;--surface:#191919;--border:#252525;--fg:#e0e0e0;--dim:#777;--accent:#a78bfa;--green:#34d399;--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;--mono:"SF Mono","Geist Mono",ui-monospace,monospace}
+:root{--bg:#121214;--surface:#1a1a1e;--border:rgba(255,255,255,0.08);--fg:#E8E8EC;--dim:#7A7C87;--accent:#FF6C37;--green:#34d399;--font:'Geist',system-ui,sans-serif;--mono:'GeistMono',ui-monospace,monospace}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font);background:var(--bg);color:var(--fg);min-height:100vh;-webkit-font-smoothing:antialiased}
 .wrap{max-width:480px;margin:0 auto;padding:32px 20px 48px}
@@ -288,7 +290,7 @@ section h2{font-size:11px;font-weight:600;color:var(--dim);text-transform:upperc
 .sw input:checked+b::after{transform:translateX(16px)}
 
 /* Button */
-.btn{display:block;width:100%;padding:10px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;margin-top:8px;transition:opacity .15s}
+.btn{display:block;width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;margin-top:8px;transition:opacity .15s}
 .btn:hover{opacity:.85}
 .btn:disabled{opacity:.3;cursor:default}
 .btn.danger{background:transparent;color:#666;border:1px solid #333;margin-top:12px}
@@ -381,7 +383,7 @@ async function uninstall(){
   const btn=document.getElementById('uninstallBtn');
   btn.disabled=true;btn.textContent='Uninstalling...';
   try{await fetch('/api/uninstall',{method:'POST'});}catch(e){}
-  document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#777;font-family:var(--font)">Agent uninstalled.</div>';
+  document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#7A7C87;font-family:Geist,system-ui,sans-serif">Agent uninstalled.</div>';
 }
 </script>
 </body>
