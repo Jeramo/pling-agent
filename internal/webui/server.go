@@ -7,6 +7,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -83,6 +87,21 @@ func Start(ctx context.Context, cfg *config.Config, version string) {
 		http.Error(w, "method not allowed", 405)
 	})
 
+	mux.HandleFunc("/api/uninstall", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "method not allowed", 405)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"ok":true}`)
+
+		// Run uninstall in background, give the response time to flush
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			uninstall()
+		}()
+	})
+
 	// Auth middleware — public internet requires token, local/private/Tailscale is trusted
 	authPin := ""
 	if len(cfg.Token) >= 16 {
@@ -112,6 +131,46 @@ func Start(ctx context.Context, cfg *config.Config, version string) {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Printf("[webui] failed to start: %v", err)
 	}
+}
+
+func uninstall() {
+	log.Println("[webui] uninstalling agent...")
+	exe, _ := os.Executable()
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	}
+	dir := filepath.Dir(exe)
+	goos := runtime.GOOS
+
+	switch goos {
+	case "darwin":
+		// Stop and remove launchd services
+		uid := os.Getenv("SUDO_UID")
+		if uid == "" {
+			uid = fmt.Sprintf("%d", os.Getuid())
+		}
+		exec.Command("launchctl", "bootout", "gui/"+uid, os.Getenv("HOME")+"/Library/LaunchAgents/com.jeramo.pling-agent.plist").Run()
+		exec.Command("launchctl", "bootout", "gui/"+uid, os.Getenv("HOME")+"/Library/LaunchAgents/com.jeramo.pling-tray.plist").Run()
+		os.Remove(os.Getenv("HOME") + "/Library/LaunchAgents/com.jeramo.pling-agent.plist")
+		os.Remove(os.Getenv("HOME") + "/Library/LaunchAgents/com.jeramo.pling-tray.plist")
+	case "linux":
+		exec.Command("systemctl", "stop", "pling-agent").Run()
+		exec.Command("systemctl", "disable", "pling-agent").Run()
+		os.Remove("/etc/systemd/system/pling-agent.service")
+		exec.Command("systemctl", "daemon-reload").Run()
+	}
+
+	// Remove binaries
+	os.Remove(filepath.Join(dir, "pling-agent"))
+	os.Remove(filepath.Join(dir, "pling-tray"))
+	os.Remove(exe + ".backup")
+	os.Remove(exe + ".update")
+
+	// Remove config
+	os.RemoveAll("/etc/pling-agent")
+
+	log.Println("[webui] uninstall complete, exiting")
+	os.Exit(0)
 }
 
 // isTrustedIP returns true for localhost, private LAN, and Tailscale ranges.
@@ -227,6 +286,8 @@ section h2{font-size:11px;font-weight:600;color:var(--dim);text-transform:upperc
 .btn{display:block;width:100%;padding:10px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;margin-top:8px;transition:opacity .15s}
 .btn:hover{opacity:.85}
 .btn:disabled{opacity:.3;cursor:default}
+.btn.danger{background:transparent;color:#666;border:1px solid #333;margin-top:12px}
+.btn.danger:hover{color:#ef4444;border-color:#ef4444}
 
 /* Toast */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(12px);background:var(--green);color:#000;padding:6px 18px;border-radius:6px;font-size:12px;font-weight:600;opacity:0;transition:.25s;pointer-events:none}
@@ -285,6 +346,7 @@ section h2{font-size:11px;font-weight:600;color:var(--dim);text-transform:upperc
 </section>
 
 <button class="btn" id="saveBtn" onclick="save()">Save</button>
+<button class="btn danger" id="uninstallBtn" onclick="uninstall()">Uninstall agent</button>
 <div class="toast" id="toast">Saved</div>
 
 </div>
@@ -308,6 +370,13 @@ async function save(){
     }
   }catch(e){console.error(e)}
   btn.disabled=false;
+}
+async function uninstall(){
+  if(!confirm('This will stop the agent, remove all binaries and config. Continue?')) return;
+  const btn=document.getElementById('uninstallBtn');
+  btn.disabled=true;btn.textContent='Uninstalling...';
+  try{await fetch('/api/uninstall',{method:'POST'});}catch(e){}
+  document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#777;font-family:var(--font)">Agent uninstalled.</div>';
 }
 </script>
 </body>
