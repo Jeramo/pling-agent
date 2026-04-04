@@ -211,7 +211,3 @@ func restart() {
 	// If exec fails, just exit — the service manager (systemd/launchd) will restart us
 	os.Exit(0)
 }
-
-func evalSymlinks(path string) (string, error) {
-	return filepath.EvalSymlinks(path)
-}
