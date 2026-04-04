@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -82,15 +83,33 @@ func Start(ctx context.Context, cfg *config.Config, version string) {
 		http.Error(w, "method not allowed", 405)
 	})
 
-	addr := fmt.Sprintf("127.0.0.1:%d", cfg.WebUIPort)
-	srv := &http.Server{Addr: addr, Handler: mux, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	// Auth middleware — requests from non-localhost must include ?token=<first 16 chars of API token>
+	authPin := ""
+	if len(cfg.Token) >= 16 {
+		authPin = cfg.Token[:16]
+	}
+	authedMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := r.RemoteAddr
+		if host, _, err := net.SplitHostPort(ip); err == nil {
+			ip = host
+		}
+		isLocal := ip == "127.0.0.1" || ip == "::1"
+		if !isLocal && r.URL.Query().Get("token") != authPin {
+			http.Error(w, "unauthorized — append ?token=<first 16 chars of your API token>", 401)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})
+
+	addr := fmt.Sprintf("0.0.0.0:%d", cfg.WebUIPort)
+	srv := &http.Server{Addr: addr, Handler: authedMux, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
 
 	go func() {
 		<-ctx.Done()
 		srv.Close()
 	}()
 
-	log.Printf("[webui] listening on http://%s", addr)
+	log.Printf("[webui] listening on http://%s (local access: no auth, remote: ?token=... required)", addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Printf("[webui] failed to start: %v", err)
 	}

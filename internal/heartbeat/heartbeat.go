@@ -11,7 +11,7 @@ import (
 
 var updateCh = make(chan struct{}, 1)
 
-func StartLoop(ctx context.Context, client *api.Client, hostname, version string, aliases []string) {
+func StartLoop(ctx context.Context, client *api.Client, hostname, version string, aliases []string, webUIPort int) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
@@ -24,7 +24,7 @@ func StartLoop(ctx context.Context, client *api.Client, hostname, version string
 		}()
 	}
 
-	beat(client, hostname, version, aliases)
+	beat(client, hostname, version, aliases, webUIPort)
 
 	for {
 		select {
@@ -32,16 +32,17 @@ func StartLoop(ctx context.Context, client *api.Client, hostname, version string
 			close(updateCh)
 			return
 		case <-ticker.C:
-			beat(client, hostname, version, aliases)
+			beat(client, hostname, version, aliases, webUIPort)
 		}
 	}
 }
 
-func beat(client *api.Client, hostname, version string, aliases []string) {
+func beat(client *api.Client, hostname, version string, aliases []string, webUIPort int) {
 	payload := map[string]interface{}{
-		"hostname": hostname,
-		"version":  version,
-		"aliases":  aliases,
+		"hostname":    hostname,
+		"version":     version,
+		"aliases":     aliases,
+		"webui_port":  webUIPort,
 	}
 	_, status, err := client.Post("/api/agent/heartbeat", payload)
 	if err != nil {

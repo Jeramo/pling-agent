@@ -66,6 +66,8 @@ EOF
     sudo systemctl enable pling-agent
     sudo systemctl start pling-agent
     echo "Systemd service started"
+    IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -n "$IP" ] && echo "Agent settings: http://${IP}:9876"
 
 elif [ "$OS" = "darwin" ]; then
     PLIST="$HOME/Library/LaunchAgents/com.jeramo.pling-agent.plist"
