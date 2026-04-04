@@ -16,7 +16,7 @@ type Config struct {
 
 func DefaultConfig() Config {
 	return Config{
-		APIURL:          "https://api.plingpush.com",
+		APIURL:          "https://agent.plingpush.com",
 		MetricsInterval: 60,
 	}
 }

@@ -36,7 +36,7 @@ if [ ! -f "${CONFIG_DIR}/config.toml" ]; then
     TMPCONF=$(mktemp /tmp/pling-config.XXXXXX)
     chmod 600 "$TMPCONF"
     cat > "$TMPCONF" <<'EOF'
-api_url = "https://api.plingpush.com"
+api_url = "https://agent.plingpush.com"
 metrics_interval = 60
 EOF
     # Write token separately to avoid shell injection from user input
