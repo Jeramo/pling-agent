@@ -236,9 +236,12 @@ h1{font-size:20px;font-weight:700;margin-bottom:4px;display:flex;align-items:cen
 
 <div class="card">
   <h2>Config</h2>
-  <div class="row"><label>File</label><span class="path">` + config.ConfigPath() + `</span></div>
-  <div class="row"><label>API token</label><span class="path">` + maskToken(cfg.Token) + `</span></div>
+  <div class="row">
+    <div><label>API token</label><div class="hint">` + maskToken(cfg.Token) + `</div></div>
+    <input type="text" id="apiToken" value="" placeholder="paste new token">
+  </div>
   <div class="row"><label>API URL</label><span class="path">` + cfg.APIURL + `</span></div>
+  <div class="row"><label>Config file</label><span class="path">` + config.ConfigPath() + `</span></div>
 </div>
 
 <button class="btn" id="saveBtn" onclick="save()">Save changes</button>
@@ -254,10 +257,14 @@ async function save(){
     hostname_override:document.getElementById('hostnameOverride').value,
     allow_remote_commands:document.getElementById('allowRemote').checked,
   };
+  const tok=document.getElementById('apiToken').value.trim();
+  if(tok.length>0) body.token=tok;
   try{
     const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(r.ok){
+      document.getElementById('apiToken').value='';
       const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);
+      if(tok.length>0) setTimeout(()=>location.reload(),500);
     }
   }catch(e){console.error(e)}
   btn.disabled=false;
