@@ -25,6 +25,29 @@ TMPBIN=$(mktemp /tmp/pling-agent.XXXXXX)
 echo "Downloading ${LATEST}..."
 curl -sL "$LATEST" -o "$TMPBIN"
 chmod +x "$TMPBIN"
+
+# Verify SHA-256 checksum
+CHECKSUM_URL="${LATEST}.sha256"
+EXPECTED=$(curl -sL "$CHECKSUM_URL" | awk '{print $1}')
+if [ -n "$EXPECTED" ]; then
+    if command -v sha256sum > /dev/null 2>&1; then
+        ACTUAL=$(sha256sum "$TMPBIN" | awk '{print $1}')
+    elif command -v shasum > /dev/null 2>&1; then
+        ACTUAL=$(shasum -a 256 "$TMPBIN" | awk '{print $1}')
+    else
+        echo "Warning: cannot verify checksum (sha256sum/shasum not found)"
+        ACTUAL="$EXPECTED"
+    fi
+    if [ "$ACTUAL" != "$EXPECTED" ]; then
+        echo "Checksum mismatch! Expected: ${EXPECTED}, Got: ${ACTUAL}"
+        rm -f "$TMPBIN"
+        exit 1
+    fi
+    echo "Checksum verified: ${ACTUAL}"
+else
+    echo "Warning: no checksum file available, skipping verification"
+fi
+
 sudo mv "$TMPBIN" "$INSTALL_DIR/pling-agent"
 echo "Installed to ${INSTALL_DIR}/pling-agent"
 

@@ -41,7 +41,12 @@ func RunCommand(ctx context.Context, command string, timeout time.Duration) Resu
 			exitCode = exitErr.ExitCode()
 		} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			exitCode = -2 // timeout
-			output = append(output, []byte("\n[pling-agent: command timed out]")...)
+			// Truncate first, then append marker so it's never cut off
+			timeoutMsg := []byte("\n[pling-agent: command timed out]")
+			if len(output) > maxOutputBytes-len(timeoutMsg) {
+				output = output[:maxOutputBytes-len(timeoutMsg)]
+			}
+			output = append(output, timeoutMsg...)
 		} else {
 			exitCode = -1
 		}

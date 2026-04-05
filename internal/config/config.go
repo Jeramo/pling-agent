@@ -65,13 +65,20 @@ func Load() (Config, error) {
 	cfg := DefaultConfig()
 
 	// Load config file (first found wins)
-	paths := []string{
-		"/etc/pling-agent/config.toml",
-		filepath.Join(homeDir(), ".config", "pling-agent", "config.toml"),
-	}
+	var paths []string
 	if runtime.GOOS == "windows" {
-		if pd := os.Getenv("ProgramData"); pd != "" {
-			paths = append([]string{filepath.Join(pd, "pling-agent", "config.toml")}, paths...)
+		pd := os.Getenv("ProgramData")
+		if pd == "" {
+			pd = `C:\ProgramData`
+		}
+		paths = []string{
+			filepath.Join(pd, "pling-agent", "config.toml"),
+			filepath.Join(homeDir(), ".config", "pling-agent", "config.toml"),
+		}
+	} else {
+		paths = []string{
+			"/etc/pling-agent/config.toml",
+			filepath.Join(homeDir(), ".config", "pling-agent", "config.toml"),
 		}
 	}
 

@@ -27,6 +27,22 @@ New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 $binPath = Join-Path $installDir "pling-agent.exe"
 Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $binPath
 
+# Verify SHA-256 checksum
+$checksumAsset = $release.assets | Where-Object { $_.name -eq "pling-agent-windows-$arch.exe.sha256" } | Select-Object -First 1
+if ($checksumAsset) {
+    $checksumContent = (Invoke-WebRequest -Uri $checksumAsset.browser_download_url).Content
+    $expected = ($checksumContent -split '\s')[0].Trim().ToLower()
+    $actual = (Get-FileHash -Path $binPath -Algorithm SHA256).Hash.ToLower()
+    if ($actual -ne $expected) {
+        Remove-Item $binPath -Force
+        Write-Error "Checksum mismatch! Expected: $expected, Got: $actual"
+        exit 1
+    }
+    Write-Host "Checksum verified: $actual" -ForegroundColor Green
+} else {
+    Write-Host "Warning: no checksum file available, skipping verification" -ForegroundColor Yellow
+}
+
 # Config
 $configFile = Join-Path $configDir "config.toml"
 if (-not (Test-Path $configFile)) {

@@ -96,10 +96,19 @@ func installTray(version string) {
 	if err != nil {
 		return
 	}
-	io.Copy(tmp, io.LimitReader(resp.Body, 50*1024*1024))
+	if _, err := io.Copy(tmp, io.LimitReader(resp.Body, 50*1024*1024)); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		log.Printf("[updater] tray write failed: %v", err)
+		return
+	}
 	tmp.Close()
 	os.Chmod(tmp.Name(), 0755)
-	os.Rename(tmp.Name(), trayPath)
+	if err := os.Rename(tmp.Name(), trayPath); err != nil {
+		os.Remove(tmp.Name())
+		log.Printf("[updater] tray rename failed: %v", err)
+		return
+	}
 
 	// Sign ad-hoc on macOS so it doesn't get killed
 	if runtime.GOOS == "darwin" {
