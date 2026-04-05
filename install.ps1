@@ -8,7 +8,8 @@ $configDir = "$env:ProgramData\pling-agent"
 $serviceName = "PlingAgent"
 
 # Detect architecture
-$arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { Write-Error "32-bit Windows not supported"; exit 1 }
+$cpuArch = $env:PROCESSOR_ARCHITECTURE
+$arch = if ($cpuArch -eq "ARM64") { "arm64" } elseif ([Environment]::Is64BitOperatingSystem) { "amd64" } else { Write-Error "32-bit Windows not supported"; exit 1 }
 
 Write-Host "Detected: windows/$arch" -ForegroundColor Cyan
 
@@ -31,6 +32,8 @@ $configFile = Join-Path $configDir "config.toml"
 if (-not (Test-Path $configFile)) {
     New-Item -ItemType Directory -Force -Path $configDir | Out-Null
     $token = Read-Host "Enter your Pling API token"
+    # Sanitize token: remove characters that could break TOML quoting
+    $token = $token -replace '["\\\r\n]', ''
     @"
 token = "$token"
 api_url = "https://agent.plingpush.com"

@@ -3,6 +3,7 @@ package schedule
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os/exec"
 	"runtime"
 	"time"
@@ -33,17 +34,21 @@ func RunCommand(ctx context.Context, command string, timeout time.Duration) Resu
 	err := cmd.Run()
 
 	output := out.Bytes()
-	if len(output) > maxOutputBytes {
-		output = output[:maxOutputBytes]
-	}
 
 	exitCode := 0
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
+		} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			exitCode = -2 // timeout
+			output = append(output, []byte("\n[pling-agent: command timed out]")...)
 		} else {
 			exitCode = -1
 		}
+	}
+
+	if len(output) > maxOutputBytes {
+		output = output[:maxOutputBytes]
 	}
 
 	return Result{

@@ -79,7 +79,7 @@ func StartLoop(ctx context.Context, client *api.Client, cfg *config.Config) {
 				result.ScheduleID = s.ID
 
 				_, _, _ = client.Post("/api/schedule-results", result)
-				nextRun[s.ID] = now.Add(parseInterval(s.Interval))
+				nextRun[s.ID] = time.Now().Add(parseInterval(s.Interval))
 			}
 		}
 	}

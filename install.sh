@@ -39,11 +39,17 @@ if [ ! -f "${CONFIG_DIR}/config.toml" ]; then
 api_url = "https://agent.plingpush.com"
 metrics_interval = 60
 EOF
-    # Write token separately to avoid shell injection from user input
-    printf 'token = "%s"\n' "$TOKEN" >> "$TMPCONF"
+    # Write token separately — strip any characters that could break TOML quoting
+    CLEAN_TOKEN=$(printf '%s' "$TOKEN" | tr -d '"\\' | tr -d '\n')
+    printf 'token = "%s"\n' "$CLEAN_TOKEN" >> "$TMPCONF"
     sudo mv "$TMPCONF" "${CONFIG_DIR}/config.toml"
     sudo chmod 600 "${CONFIG_DIR}/config.toml"
-    sudo chown "$(id -u):$(id -g)" "${CONFIG_DIR}/config.toml"
+    # On macOS the launchd agent runs as the current user, so chown to them.
+    # On Linux the systemd service runs as root, so leave ownership as root.
+    if [ "$OS" = "darwin" ]; then
+        sudo chown "$(id -u):$(id -g)" "${CONFIG_DIR}/config.toml"
+        sudo chown "$(id -u):$(id -g)" "${CONFIG_DIR}"
+    fi
     echo "Config written to ${CONFIG_DIR}/config.toml"
 fi
 
@@ -64,7 +70,7 @@ WantedBy=multi-user.target
 EOF
     sudo systemctl daemon-reload
     sudo systemctl enable pling-agent
-    sudo systemctl start pling-agent
+    sudo systemctl restart pling-agent
     echo "Systemd service started"
     IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     [ -n "$IP" ] && echo "Agent settings: http://${IP}:9876"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"log"
 	"net"
 	"net/http"
@@ -75,7 +76,9 @@ func Start(ctx context.Context, cfg *config.Config, version string) {
 			}
 
 			if err := cfg.Save(); err != nil {
-				http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), 500)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(500)
+				json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 				return
 			}
 
@@ -112,9 +115,12 @@ func Start(ctx context.Context, cfg *config.Config, version string) {
 		if host, _, err := net.SplitHostPort(ip); err == nil {
 			ip = host
 		}
-		if !isTrustedIP(ip) && r.URL.Query().Get("token") != authPin {
-			http.Error(w, "unauthorized — append ?token=<first 16 chars of your API token>", 401)
-			return
+		if !isTrustedIP(ip) {
+			qToken := r.URL.Query().Get("token")
+			if authPin == "" || qToken != authPin {
+				http.Error(w, "unauthorized — append ?token=<first 16 chars of your API token>", 401)
+				return
+			}
 		}
 		mux.ServeHTTP(w, r)
 	})
@@ -173,6 +179,13 @@ func uninstall() {
 
 	// Remove config
 	os.RemoveAll("/etc/pling-agent")
+	if goos == "windows" {
+		os.RemoveAll(filepath.Join(os.Getenv("ProgramData"), "pling-agent"))
+	}
+	// Also remove user-level config
+	if home, err := os.UserHomeDir(); err == nil {
+		os.RemoveAll(filepath.Join(home, ".config", "pling-agent"))
+	}
 
 	log.Println("[webui] uninstall complete, exiting")
 	os.Exit(0)
@@ -211,7 +224,7 @@ func maskToken(t string) string {
 }
 
 func page(cfg *config.Config, version string) string {
-	hostname := cfg.Hostname()
+	hostname := html.EscapeString(cfg.Hostname())
 	aliases := cfg.HostAliases()
 
 	// Filter aliases: only show useful ones (IPv4, Tailscale DNS, non-link-local)
@@ -233,7 +246,7 @@ func page(cfg *config.Config, version string) string {
 	}
 	aliasHTML := ""
 	for _, a := range filtered {
-		aliasHTML += `<span class="tag">` + a + `</span>`
+		aliasHTML += `<span class="tag">` + html.EscapeString(a) + `</span>`
 	}
 
 	remoteChecked := ""
@@ -336,7 +349,7 @@ section h2{font-size:11px;font-weight:600;color:var(--dim);text-transform:upperc
     </div>
     <div class="field">
       <span class="label">Hostname override</span>
-      <input type="text" id="hostnameOverride" value="` + cfg.HostnameOverride + `" placeholder="auto">
+      <input type="text" id="hostnameOverride" value="` + html.EscapeString(cfg.HostnameOverride) + `" placeholder="auto">
     </div>
   </div>
 </section>
@@ -348,7 +361,7 @@ section h2{font-size:11px;font-weight:600;color:var(--dim);text-transform:upperc
       <div><span class="label">API token</span><div class="sub">` + maskToken(cfg.Token) + `</div></div>
       <input type="text" id="apiToken" value="" placeholder="paste new token">
     </div>
-    <div class="field"><span class="label">API endpoint</span><span class="value">` + cfg.APIURL + `</span></div>
+    <div class="field"><span class="label">API endpoint</span><span class="value">` + html.EscapeString(cfg.APIURL) + `</span></div>
   </div>
 </section>
 

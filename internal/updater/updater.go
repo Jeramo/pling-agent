@@ -69,10 +69,16 @@ func CheckAndUpdate(client *api.Client, currentVersion string) {
 }
 
 func installTray(version string) {
-	trayPath := filepath.Join(filepath.Dir(resolvedExePath), "pling-tray")
+	trayName := "pling-tray"
+	urlSuffix := ""
+	if runtime.GOOS == "windows" {
+		trayName = "pling-tray.exe"
+		urlSuffix = ".exe"
+	}
+	trayPath := filepath.Join(filepath.Dir(resolvedExePath), trayName)
 	url := fmt.Sprintf(
-		"https://github.com/Jeramo/pling-agent/releases/download/v%s/pling-tray-%s-%s",
-		version, runtime.GOOS, runtime.GOARCH,
+		"https://github.com/Jeramo/pling-agent/releases/download/v%s/pling-tray-%s-%s%s",
+		version, runtime.GOOS, runtime.GOARCH, urlSuffix,
 	)
 	log.Printf("[updater] downloading tray from %s", url)
 
@@ -96,7 +102,9 @@ func installTray(version string) {
 	os.Rename(tmp.Name(), trayPath)
 
 	// Sign ad-hoc on macOS so it doesn't get killed
-	exec.Command("codesign", "-s", "-", "-f", trayPath).Run()
+	if runtime.GOOS == "darwin" {
+		exec.Command("codesign", "-s", "-", "-f", trayPath).Run()
+	}
 	log.Printf("[updater] tray installed at %s", trayPath)
 }
 

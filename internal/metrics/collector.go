@@ -3,6 +3,8 @@ package metrics
 import (
 	"errors"
 	"log"
+	"os"
+	"runtime"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -39,7 +41,15 @@ func Collect() (Snapshot, error) {
 		s.MemTotal = int(v.Total / (1024 * 1024))
 	}
 
-	d, err := disk.Usage("/")
+	diskRoot := "/"
+	if runtime.GOOS == "windows" {
+		diskRoot = os.Getenv("SystemDrive")
+		if diskRoot == "" {
+			diskRoot = "C:"
+		}
+		diskRoot += "\\"
+	}
+	d, err := disk.Usage(diskRoot)
 	if err != nil {
 		log.Printf("[metrics] disk collection failed: %v", err)
 		failCount++

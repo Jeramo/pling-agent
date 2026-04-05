@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -36,6 +37,13 @@ func ConfigPath() string {
 	if loadedConfigPath != "" {
 		return loadedConfigPath
 	}
+	if runtime.GOOS == "windows" {
+		pd := os.Getenv("ProgramData")
+		if pd == "" {
+			pd = `C:\ProgramData`
+		}
+		return filepath.Join(pd, "pling-agent", "config.toml")
+	}
 	return "/etc/pling-agent/config.toml"
 }
 
@@ -60,6 +68,11 @@ func Load() (Config, error) {
 	paths := []string{
 		"/etc/pling-agent/config.toml",
 		filepath.Join(homeDir(), ".config", "pling-agent", "config.toml"),
+	}
+	if runtime.GOOS == "windows" {
+		if pd := os.Getenv("ProgramData"); pd != "" {
+			paths = append([]string{filepath.Join(pd, "pling-agent", "config.toml")}, paths...)
+		}
 	}
 
 	for _, p := range paths {
@@ -92,10 +105,12 @@ func (c Config) Hostname() string {
 	}
 	// On macOS, use scutil to get the Bonjour-resolvable hostname
 	// so it matches what iOS discovers via mDNS.
-	if out, err := exec.Command("scutil", "--get", "LocalHostName").Output(); err == nil {
-		name := strings.TrimSpace(string(out))
-		if name != "" {
-			return name + ".local"
+	if runtime.GOOS == "darwin" {
+		if out, err := exec.Command("scutil", "--get", "LocalHostName").Output(); err == nil {
+			name := strings.TrimSpace(string(out))
+			if name != "" {
+				return name + ".local"
+			}
 		}
 	}
 	name, _ := os.Hostname()
@@ -152,6 +167,9 @@ func (c Config) HostAliases() []string {
 
 func homeDir() string {
 	if h := os.Getenv("HOME"); h != "" {
+		return h
+	}
+	if h := os.Getenv("USERPROFILE"); h != "" {
 		return h
 	}
 	return "/root"

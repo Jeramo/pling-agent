@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
@@ -117,6 +118,10 @@ func pollAndRelay(ctx context.Context, client *api.Client) {
 }
 
 func runRelay(ctx context.Context, client *api.Client, task Task) error {
+	if runtime.GOOS == "windows" {
+		return fmt.Errorf("share relay is not supported on Windows (no PTY support)")
+	}
+
 	log.Printf("[share] starting relay for room %s", task.RoomID)
 
 	// Build WebSocket URL with host role and password hash
