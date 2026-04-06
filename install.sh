@@ -49,6 +49,10 @@ else
 fi
 
 sudo mv "$TMPBIN" "$INSTALL_DIR/pling-agent"
+# Remove macOS quarantine flag to prevent Gatekeeper "unidentified developer" warning
+if [ "$OS" = "darwin" ]; then
+    sudo xattr -d com.apple.quarantine "$INSTALL_DIR/pling-agent" 2>/dev/null || true
+fi
 echo "Installed to ${INSTALL_DIR}/pling-agent"
 
 if [ ! -f "${CONFIG_DIR}/config.toml" ]; then
@@ -123,6 +127,7 @@ EOF
         curl -sL "$TRAY_URL" -o "$TMPTRAY"
         chmod +x "$TMPTRAY"
         sudo mv "$TMPTRAY" "$INSTALL_DIR/pling-tray"
+        sudo xattr -d com.apple.quarantine "$INSTALL_DIR/pling-tray" 2>/dev/null || true
 
         TRAY_PLIST="$HOME/Library/LaunchAgents/com.jeramo.pling-tray.plist"
         cat > "$TRAY_PLIST" <<TEOF
