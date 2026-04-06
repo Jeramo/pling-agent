@@ -42,7 +42,13 @@ func Collect() (Snapshot, error) {
 	}
 
 	diskRoot := "/"
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "darwin" {
+		// On macOS, "/" is a read-only APFS snapshot. The writable data volume
+		// is at /System/Volumes/Data — use it for accurate user-visible usage.
+		if _, err := os.Stat("/System/Volumes/Data"); err == nil {
+			diskRoot = "/System/Volumes/Data"
+		}
+	} else if runtime.GOOS == "windows" {
 		diskRoot = os.Getenv("SystemDrive")
 		if diskRoot == "" {
 			diskRoot = "C:"
