@@ -9,12 +9,22 @@ import (
 )
 
 type ReportPayload struct {
-	HostID    string  `json:"host_id"`
-	CPU       float64 `json:"cpu"`
-	MemUsed   int     `json:"mem_used"`
-	MemTotal  int     `json:"mem_total"`
-	DiskUsed  int     `json:"disk_used"`
-	DiskTotal int     `json:"disk_total"`
+	HostID       string  `json:"host_id"`
+	CPU          float64 `json:"cpu"`
+	MemUsed      int     `json:"mem_used"`
+	MemTotal     int     `json:"mem_total"`
+	DiskUsed     int     `json:"disk_used"`
+	DiskTotal    int     `json:"disk_total"`
+	Uptime       int     `json:"uptime"`
+	SwapUsed     int     `json:"swap_used"`
+	SwapTotal    int     `json:"swap_total"`
+	NetBytesSent uint64  `json:"net_bytes_sent"`
+	NetBytesRecv uint64  `json:"net_bytes_recv"`
+	ProcessCount int     `json:"process_count"`
+	Load1        float64 `json:"load_1"`
+	Load5        float64 `json:"load_5"`
+	Load15       float64 `json:"load_15"`
+	Temperature  float64 `json:"temperature"`
 }
 
 func StartLoop(ctx context.Context, client *api.Client, hostname string, interval time.Duration) {
@@ -41,12 +51,22 @@ func report(client *api.Client, hostname string) {
 	}
 
 	payload := ReportPayload{
-		HostID:    hostname,
-		CPU:       snap.CPU,
-		MemUsed:   snap.MemUsed,
-		MemTotal:  snap.MemTotal,
-		DiskUsed:  snap.DiskUsed,
-		DiskTotal: snap.DiskTotal,
+		HostID:       hostname,
+		CPU:          snap.CPU,
+		MemUsed:      snap.MemUsed,
+		MemTotal:     snap.MemTotal,
+		DiskUsed:     snap.DiskUsed,
+		DiskTotal:    snap.DiskTotal,
+		Uptime:       snap.Uptime,
+		SwapUsed:     snap.SwapUsed,
+		SwapTotal:    snap.SwapTotal,
+		NetBytesSent: snap.NetBytesSent,
+		NetBytesRecv: snap.NetBytesRecv,
+		ProcessCount: snap.ProcessCount,
+		Load1:        snap.Load1,
+		Load5:        snap.Load5,
+		Load15:       snap.Load15,
+		Temperature:  snap.Temperature,
 	}
 
 	_, status, err := client.Post("/api/metrics", payload)
