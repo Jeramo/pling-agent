@@ -85,4 +85,4 @@ sudo rm -rf /etc/pling-agent
 
 ## License
 
-Proprietary. Copyright (c) 2025 Jean-Robert Nino.
+Proprietary. Copyright (c) 2026 Jean-Robert Nino.
