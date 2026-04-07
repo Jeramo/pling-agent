@@ -1,6 +1,6 @@
 # Pling Agent
 
-A lightweight agent that runs on your server to report system metrics, relay terminal sharing sessions, and execute scheduled commands — all controlled from the [Pling](https://plingpush.com) iOS app.
+A lightweight agent that runs on your server to report system metrics, relay terminal sharing sessions, and execute scheduled commands, all controlled from the [Pling](https://plingpush.com) iOS app.
 
 ## Features
 
