@@ -1,18 +1,14 @@
 package updater
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -59,62 +55,8 @@ func CheckAndUpdate(client *api.Client, currentVersion string) {
 		return
 	}
 
-	// Install/update the system tray on supported platforms
-	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-		installTray(latest)
-	}
-
 	log.Printf("[updater] updated to %s, restarting...", latest)
 	restart()
-}
-
-func installTray(version string) {
-	trayName := "pling-tray"
-	urlSuffix := ""
-	if runtime.GOOS == "windows" {
-		trayName = "pling-tray.exe"
-		urlSuffix = ".exe"
-	}
-	trayPath := filepath.Join(filepath.Dir(resolvedExePath), trayName)
-	url := fmt.Sprintf(
-		"https://github.com/Jeramo/pling-agent/releases/download/v%s/pling-tray-%s-%s%s",
-		version, runtime.GOOS, runtime.GOARCH, urlSuffix,
-	)
-	log.Printf("[updater] downloading tray from %s", url)
-
-	resp, err := (&http.Client{Timeout: 60 * time.Second}).Get(url)
-	if err != nil || resp.StatusCode != 200 {
-		if resp != nil {
-			resp.Body.Close()
-		}
-		log.Printf("[updater] tray download failed (non-critical)")
-		return
-	}
-	defer resp.Body.Close()
-
-	tmp, err := os.CreateTemp(filepath.Dir(trayPath), "pling-tray-*.tmp")
-	if err != nil {
-		return
-	}
-	if _, err := io.Copy(tmp, io.LimitReader(resp.Body, 50*1024*1024)); err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
-		log.Printf("[updater] tray write failed: %v", err)
-		return
-	}
-	tmp.Close()
-	os.Chmod(tmp.Name(), 0755)
-	if err := os.Rename(tmp.Name(), trayPath); err != nil {
-		os.Remove(tmp.Name())
-		log.Printf("[updater] tray rename failed: %v", err)
-		return
-	}
-
-	// Sign ad-hoc on macOS so it doesn't get killed
-	if runtime.GOOS == "darwin" {
-		exec.Command("codesign", "-s", "-", "-f", trayPath).Run()
-	}
-	log.Printf("[updater] tray installed at %s", trayPath)
 }
 
 func fetchLatestVersion(client *api.Client) (string, error) {
@@ -182,61 +124,6 @@ func downloadAndReplace(version string) error {
 		os.Remove(tmpPath)
 		return fmt.Errorf("download too small (%d bytes), likely corrupted", n)
 	}
-
-	// Verify SHA-256 checksum from sidecar file
-	checksumURL := url + ".sha256"
-	log.Printf("[updater] downloading checksum %s", checksumURL)
-	csResp, err := (&http.Client{Timeout: 15 * time.Second}).Get(checksumURL)
-	if err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("checksum download: %w", err)
-	}
-	defer csResp.Body.Close()
-
-	if csResp.StatusCode != 200 {
-		os.Remove(tmpPath)
-		return fmt.Errorf("checksum download returned %d", csResp.StatusCode)
-	}
-
-	csBody, err := io.ReadAll(io.LimitReader(csResp.Body, 1024))
-	if err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("checksum read: %w", err)
-	}
-
-	// Parse expected checksum (first hex field, handles "hash  filename" format)
-	fields := strings.Fields(string(csBody))
-	if len(fields) == 0 {
-		os.Remove(tmpPath)
-		return fmt.Errorf("empty checksum file")
-	}
-	expectedHash := strings.TrimSpace(fields[0])
-	if len(expectedHash) != 64 {
-		os.Remove(tmpPath)
-		return fmt.Errorf("invalid checksum format: %q", string(csBody))
-	}
-
-	// Compute actual SHA-256 of downloaded binary
-	tmpFile, err := os.Open(tmpPath)
-	if err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("reopen temp for checksum: %w", err)
-	}
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, tmpFile); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("hash compute: %w", err)
-	}
-	tmpFile.Close()
-
-	actualHash := hex.EncodeToString(hasher.Sum(nil))
-	if !strings.EqualFold(actualHash, expectedHash) {
-		os.Remove(tmpPath)
-		return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedHash, actualHash)
-	}
-
-	log.Printf("[updater] checksum verified: %s", actualHash)
 
 	// Backup current binary before replacing
 	backupPath := realExe + ".backup"
