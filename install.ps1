@@ -99,6 +99,25 @@ sc.exe description $serviceName "Pling - 24/7 server monitoring and scheduled co
 sc.exe failure $serviceName reset= 60 actions= restart/10000/restart/30000/restart/60000 | Out-Null
 Start-Service -Name $serviceName
 
+# Add install dir to system PATH so `pling` works from any shell
+$systemPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+$pathEntries = $systemPath -split ';' | Where-Object { $_ -ne '' }
+if ($pathEntries -notcontains $installDir) {
+    [Environment]::SetEnvironmentVariable("Path", "$systemPath;$installDir", "Machine")
+    Write-Host "Added $installDir to system PATH (open a new shell to use it)"
+}
+# Also prepend to current session's PATH so `pling status` works right after install
+if (-not ($env:Path -split ';' -contains $installDir)) {
+    $env:Path = "$installDir;$env:Path"
+}
+
+# Remove legacy install dir from PATH if present
+$legacyOnPath = $pathEntries -contains $legacyInstallDir
+if ($legacyOnPath) {
+    $cleaned = ($pathEntries | Where-Object { $_ -ne $legacyInstallDir }) -join ';'
+    [Environment]::SetEnvironmentVariable("Path", $cleaned, "Machine")
+}
+
 $ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch "Loopback" -and $_.PrefixOrigin -ne "WellKnown" } | Select-Object -First 1).IPAddress
 Write-Host ""
 Write-Host "Done! Pling is running." -ForegroundColor Green
