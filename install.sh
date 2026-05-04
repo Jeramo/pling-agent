@@ -3,7 +3,8 @@ set -e
 
 REPO="jeramo/pling-agent"
 INSTALL_DIR="/usr/local/bin"
-CONFIG_DIR="/etc/pling-agent"
+CONFIG_DIR="/etc/pling"
+LEGACY_CONFIG_DIR="/etc/pling-agent"
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -15,24 +16,47 @@ esac
 
 echo "Detected: ${OS}/${ARCH}"
 
-LATEST=$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" | grep "browser_download_url.*${OS}-${ARCH}" | head -1 | cut -d '"' -f 4)
+LATEST=$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" | grep "browser_download_url.*pling-${OS}-${ARCH}" | head -1 | cut -d '"' -f 4)
 if [ -z "$LATEST" ]; then
     echo "No release found for ${OS}/${ARCH}"
     exit 1
 fi
 
-TMPBIN=$(mktemp /tmp/pling-agent.XXXXXX)
+# Stop legacy service if present so we can replace its files
+if [ "$OS" = "linux" ] && command -v systemctl > /dev/null 2>&1; then
+    sudo systemctl stop pling-agent 2>/dev/null || true
+    sudo systemctl disable pling-agent 2>/dev/null || true
+elif [ "$OS" = "darwin" ]; then
+    LEGACY_PLIST="$HOME/Library/LaunchAgents/com.jeramo.pling-agent.plist"
+    if [ -f "$LEGACY_PLIST" ]; then
+        launchctl bootout "gui/$(id -u)" "$LEGACY_PLIST" 2>/dev/null || true
+        rm -f "$LEGACY_PLIST"
+    fi
+fi
+
+TMPBIN=$(mktemp /tmp/pling.XXXXXX)
 echo "Downloading ${LATEST}..."
 curl -sL "$LATEST" -o "$TMPBIN"
 chmod +x "$TMPBIN"
 
-sudo mv "$TMPBIN" "$INSTALL_DIR/pling-agent"
-# Remove macOS quarantine flag to prevent Gatekeeper warning
+sudo mv "$TMPBIN" "$INSTALL_DIR/pling"
+# Drop a legacy symlink so old service units / docs keep working until uninstall
+sudo ln -sf "$INSTALL_DIR/pling" "$INSTALL_DIR/pling-agent"
 if [ "$OS" = "darwin" ]; then
-    sudo xattr -d com.apple.quarantine "$INSTALL_DIR/pling-agent" 2>/dev/null || true
+    sudo xattr -d com.apple.quarantine "$INSTALL_DIR/pling" 2>/dev/null || true
 fi
-echo "Installed to ${INSTALL_DIR}/pling-agent"
+echo "Installed to ${INSTALL_DIR}/pling"
 
+# Migrate legacy config if present and new config doesn't exist
+if [ -f "${LEGACY_CONFIG_DIR}/config.toml" ] && [ ! -f "${CONFIG_DIR}/config.toml" ]; then
+    sudo mkdir -p "$CONFIG_DIR"
+    sudo chmod 700 "$CONFIG_DIR"
+    sudo cp "${LEGACY_CONFIG_DIR}/config.toml" "${CONFIG_DIR}/config.toml"
+    sudo chmod 600 "${CONFIG_DIR}/config.toml"
+    echo "Migrated config from ${LEGACY_CONFIG_DIR}"
+fi
+
+# Always prompt for token and rewrite config
 sudo mkdir -p "$CONFIG_DIR"
 sudo chmod 700 "$CONFIG_DIR"
 if [ ! -t 0 ] && [ ! -r /dev/tty ]; then
@@ -63,15 +87,21 @@ if [ "$OS" = "darwin" ]; then
 fi
 echo "Config written to ${CONFIG_DIR}/config.toml"
 
+# Remove legacy config dir now that we've migrated
+if [ -d "$LEGACY_CONFIG_DIR" ]; then
+    sudo rm -rf "$LEGACY_CONFIG_DIR" 2>/dev/null || true
+fi
+
 if [ "$OS" = "linux" ] && command -v systemctl > /dev/null 2>&1; then
-    sudo tee /etc/systemd/system/pling-agent.service > /dev/null <<EOF
+    sudo rm -f /etc/systemd/system/pling-agent.service
+    sudo tee /etc/systemd/system/pling.service > /dev/null <<EOF
 [Unit]
-Description=Pling Agent
+Description=Pling agent
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=${INSTALL_DIR}/pling-agent
+ExecStart=${INSTALL_DIR}/pling serve
 Restart=always
 RestartSec=10
 
@@ -79,21 +109,21 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
     sudo systemctl daemon-reload
-    sudo systemctl enable pling-agent
-    sudo systemctl restart pling-agent
+    sudo systemctl enable pling
+    sudo systemctl restart pling
     echo "Systemd service started"
     IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     [ -n "$IP" ] && echo "Agent settings: http://${IP}:9876"
 
 elif [ "$OS" = "darwin" ]; then
-    PLIST="$HOME/Library/LaunchAgents/com.jeramo.pling-agent.plist"
+    PLIST="$HOME/Library/LaunchAgents/com.jeramo.pling.plist"
     cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>Label</key><string>com.jeramo.pling-agent</string>
-    <key>ProgramArguments</key><array><string>${INSTALL_DIR}/pling-agent</string></array>
+    <key>Label</key><string>com.jeramo.pling</string>
+    <key>ProgramArguments</key><array><string>${INSTALL_DIR}/pling</string><string>serve</string></array>
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><true/>
     <key>EnvironmentVariables</key>
@@ -104,14 +134,14 @@ elif [ "$OS" = "darwin" ]; then
 </dict>
 </plist>
 EOF
-    launchctl bootout gui/$(id -u) "$PLIST" 2>/dev/null || true
-    launchctl bootstrap gui/$(id -u) "$PLIST"
+    launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
+    launchctl bootstrap "gui/$(id -u)" "$PLIST"
     echo "LaunchAgent started"
 fi
 
-echo "Done! pling-agent is running."
+echo "Done! pling is running."
+echo "Try: pling status"
 
-# Open the web UI so the user can verify/configure the agent
 sleep 2
 if command -v xdg-open > /dev/null 2>&1; then
     xdg-open "http://localhost:9876" 2>/dev/null &

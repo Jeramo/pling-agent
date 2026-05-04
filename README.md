@@ -1,14 +1,6 @@
-# Pling Agent
+# Pling
 
-A lightweight agent that runs on your server to report system metrics, relay terminal sharing sessions, and execute scheduled commands, all controlled from the [Pling](https://plingpush.com) iOS app.
-
-## Features
-
-- **System metrics** — CPU, memory, disk, network, and load average reported to Pling
-- **Terminal sharing** — relay shared SSH sessions through the agent for persistent connections
-- **Scheduled commands** — run commands on a cron schedule, triggered from the app
-- **Auto-updates** — the agent updates itself when new versions are released
-- **Web UI** — local settings dashboard at `http://localhost:9876`
+A lightweight agent + CLI that connects your server or workstation to the [Pling](https://plingpush.com) app. Reports system metrics, relays shared terminal sessions, runs scheduled commands, and exposes a small web UI for local config.
 
 ## Install
 
@@ -18,7 +10,14 @@ A lightweight agent that runs on your server to report system metrics, relay ter
 curl -sSL https://raw.githubusercontent.com/Jeramo/pling-agent/main/install.sh | sh
 ```
 
-The installer downloads the latest release, prompts for your API token, and sets up a systemd service (Linux) or LaunchAgent (macOS).
+The installer downloads the latest release, prompts for your API token, and sets up a systemd service (Linux) or LaunchAgent (macOS). It also migrates from any earlier `pling-agent` install.
+
+### macOS via Homebrew
+
+```sh
+brew install jeramo/pling/pling
+brew services start pling
+```
 
 ### Windows
 
@@ -28,21 +27,36 @@ irm https://raw.githubusercontent.com/Jeramo/pling-agent/main/install.ps1 | iex
 
 ### Manual
 
-Download the binary for your platform from the [latest release](https://github.com/Jeramo/pling-agent/releases/latest), then:
-
 ```sh
-chmod +x pling-agent-*
-sudo mv pling-agent-* /usr/local/bin/pling-agent
-sudo mkdir -p /etc/pling-agent
-sudo nano /etc/pling-agent/config.toml
+curl -L -o pling https://github.com/Jeramo/pling-agent/releases/latest/download/pling-linux-amd64
+chmod +x pling
+sudo mv pling /usr/local/bin/pling
+sudo mkdir -p /etc/pling
+sudo nano /etc/pling/config.toml
 ```
 
-Config file (`/etc/pling-agent/config.toml`):
+Config file (`/etc/pling/config.toml`):
 
 ```toml
 api_url = "https://agent.plingpush.com"
 token = "YOUR_TOKEN_HERE"
 metrics_interval = 60
+```
+
+Then run `pling serve`, or install it as a service.
+
+## CLI
+
+```
+pling serve              run the agent (foreground daemon; what the service runs)
+pling status             service state, version, config path
+pling logs [-f]          recent agent logs (-f to follow)
+pling start | stop | restart
+pling set-token <token>  update token and restart service
+pling config [edit]      print config path or open in $EDITOR
+pling open               open the local web UI
+pling uninstall          remove agent, config, and service
+pling version
 ```
 
 ## Supported platforms
@@ -59,30 +73,15 @@ macOS binaries are signed with Developer ID and notarized by Apple.
 ## Build from source
 
 ```sh
-go build -o pling-agent ./cmd/pling-agent
+go build -o pling ./cmd/pling-agent
 ```
 
 ## Uninstall
 
-### Linux
-
 ```sh
-sudo systemctl stop pling-agent
-sudo systemctl disable pling-agent
-sudo rm /etc/systemd/system/pling-agent.service
-sudo rm /usr/local/bin/pling-agent
-sudo rm -rf /etc/pling-agent
-```
-
-### macOS
-
-```sh
-launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.jeramo.pling-agent.plist
-rm ~/Library/LaunchAgents/com.jeramo.pling-agent.plist
-sudo rm /usr/local/bin/pling-agent
-sudo rm -rf /etc/pling-agent
+pling uninstall
 ```
 
 ## License
 
-Proprietary. Copyright (c) 2026 Jean-Robert Nino.
+Proprietary. Copyright (c) 2025 Jean-Robert Nino.
