@@ -3,12 +3,12 @@
     <channel>
         <title>Pling Agent</title>
         <item>
-            <title>0.1.1</title>
-            <pubDate>Sat, 27 Jun 2026 22:31:56 +0200</pubDate>
-            <sparkle:version>2</sparkle:version>
-            <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
+            <title>0.1.2</title>
+            <pubDate>Sat, 27 Jun 2026 23:15:03 +0200</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>0.1.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/Jeramo/pling-agent/releases/download/app-v0.1.1/Pling-Agent-v0.1.1.dmg" length="12515699" type="application/octet-stream" sparkle:edSignature="Aahprckl9QWwAsTsQHIl8D/j2geN7Fx9F4dkEZ1Jor0MO2qEg0qEmIP/WmCBSdWOKJC0f3sTz4e/zbigKG9kCg=="/>
+            <enclosure url="https://github.com/Jeramo/pling-agent/releases/download/app-v0.1.2/Pling-Agent-v0.1.2.dmg" length="12475353" type="application/octet-stream" sparkle:edSignature="ZKUurgZMEIgbt9Z7YnPl2apvFiqQgmZ0+/DL1OKjZzdPKks8frgus2HzVldbBxwXxPqLjGg/Q4Sp8VT69UKzAg=="/>
         </item>
     </channel>
 </rss>
