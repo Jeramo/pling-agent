@@ -197,6 +197,39 @@ EOF
         fi
     fi
 
+    # On Wayland desktops (GNOME, KDE, ...) Screen reads the screen from
+    # PipeWire and encodes it with GStreamer. Same rules: only with a Wayland
+    # session, and never failing the install.
+    WAYLAND_DESKTOP=0
+    if [ "${XDG_SESSION_TYPE:-}" = "wayland" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+        WAYLAND_DESKTOP=1
+    elif command -v loginctl > /dev/null 2>&1; then
+        for S in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+            if [ "$(loginctl show-session "$S" -p Type --value 2>/dev/null)" = "wayland" ]; then
+                WAYLAND_DESKTOP=1
+            fi
+        done
+    fi
+    if [ "$WAYLAND_DESKTOP" = "1" ] && ! { command -v gst-launch-1.0 > /dev/null 2>&1 \
+        && gst-inspect-1.0 pipewiresrc > /dev/null 2>&1 && gst-inspect-1.0 h264parse > /dev/null 2>&1 \
+        && { gst-inspect-1.0 x264enc > /dev/null 2>&1 || gst-inspect-1.0 openh264enc > /dev/null 2>&1; }; }; then
+        . /etc/os-release 2>/dev/null || true
+        case " ${ID:-} ${ID_LIKE:-} " in
+            *" debian "*|*" ubuntu "*) GST_CMD="sudo apt-get update -qq && sudo apt-get install -y gstreamer1.0-tools gstreamer1.0-pipewire gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly" ;;
+            *" fedora "*) GST_CMD="sudo dnf install -y gstreamer1 pipewire-gstreamer gstreamer1-plugins-base gstreamer1-plugins-good gstreamer1-plugins-bad-free gstreamer1-plugin-openh264" ;;
+            *" arch "*) GST_CMD="sudo pacman -S --noconfirm gstreamer gst-plugin-pipewire gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly" ;;
+            *" opensuse"*|*" suse "*) GST_CMD="sudo zypper --non-interactive install gstreamer-utils gstreamer-plugin-pipewire gstreamer-plugins-base gstreamer-plugins-good gstreamer-plugins-bad gstreamer-plugin-openh264" ;;
+            *" alpine "*) GST_CMD="sudo apk add gstreamer-tools gst-plugin-pipewire gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly" ;;
+            *) GST_CMD="" ;;
+        esac
+        if [ -n "$GST_CMD" ]; then
+            echo "Installing the PipeWire/GStreamer pieces Screen needs on Wayland: $GST_CMD"
+            sh -c "$GST_CMD" > /dev/null 2>&1 || echo "Could not install them. Screen on Wayland needs: $GST_CMD"
+        else
+            echo "Screen on Wayland needs GStreamer with the PipeWire plugin, h264parse and an H.264 encoder (x264 or openh264)."
+        fi
+    fi
+
 elif [ "$OS" = "darwin" ] && [ "$SYSTEM" = "1" ]; then
     # Boot-before-login: install a root LaunchDaemon. Remove any per-user
     # LaunchAgent first so two `pling serve` processes don't fight over port 9876.
